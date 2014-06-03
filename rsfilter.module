@@ -1,0 +1,145 @@
+<?php
+define('API_URL', variable_get('rs_api_url','URL'));
+define('API_KEY', variable_get('rs_api_key','Key'));
+
+/**
+* Implements hook_filter_info().
+*/
+function rsfilter_filter_info(){
+    $filters = array();
+    $filters['rsfilter'] = array(
+                'title' => t('Resource Space Filter'),
+                'process callback' => '_rsfilter_filter',
+                );
+    return $filters;
+}
+
+function _rsfilter_filter($text, $filter, $format, $langcode, $cache, $cache_id){
+    $matches = array();
+    $coincidence = preg_match_all('/rs_document:([0-9]+):([a-zA-Z]+)/s', $text, $matches);
+    if($coincidence >= 1){
+        $idCounter = 0;
+        foreach($matches[0] as $match){
+            $resourceData = @_rsfilter_resource_data($matches[1][$idCounter]); 
+            $variables = array('resource_url' => $resourceData[4], 'resource_thumbnail' => $resourceData[0], 'resource_title' => $resourceData[3],'mode' => $matches[2][$idCounter]);
+            $text = str_replace($matches[0][$idCounter++],theme('rs_resource',$variables),$text);
+        }
+    }
+    $coincidence = preg_match_all('/rs_collection:([0-9]+):([a-zA-Z]+)/s', $text, $matches);
+    if($coincidence >= 1){
+        $idCounter = 0;
+        foreach($matches[0] as $match){
+            $collection_resources = @_rsfilter_collection_data($matches[1][$idCounter]);
+            $resources = array();
+            $resource_counter = 0;
+            foreach(@$collection_resources["Resource"] as $resource){
+                $variables = @array('resource_url' => $resource['url'], 'resource_thumbnail' => $resource['preview'], 'resource_title' => $resource['title'],'mode' => $matches[2][$idCounter]);
+                $resources[$resource_counter] = theme('rs_resource',$variables);
+                $resource_counter++;
+            }
+            $resources['total_resources'] = $resource_counter;
+            $text = str_replace($matches[0][$idCounter++],theme('rs_collection',$resources),$text);
+        }
+    }
+    return $text;
+}
+
+function _rsfilter_resource_data($id){
+    $content = @file_get_contents(API_URL . 'resource/?key=' . API_KEY.'&id=' . $id);
+    return json_decode($content,true);
+}
+
+function _rsfilter_collection_data($id){
+    $content = @file_get_contents(API_URL . 'collection/?key=' . API_KEY . '&id=' . $id . '&param=file_extension');
+    return json_decode($content,true);
+}
+
+function rsfilter_preprocess_rs_resource(&$vars,$hook){
+    if (@$vars['mode'] == 'thm'){
+        $vars['theme_hook_suggestions'][] = 'rs_resource';
+    }
+    elseif (@$vars['mode'] == 'link'){
+        $vars['theme_hook_suggestions'][] = 'rs_resource__link';
+    }
+}
+
+function rsfilter_theme($existing, $type, $theme, $path){
+    return array(
+                'rs_resource' => array(
+                'variables' => array(
+                'resource_url' => NULL,
+                'resource_thumbnail' => NULL,
+                'resource_title' => NULL,
+                'node' => NULL
+            ),
+                'template' => 'rs-resource'// do not include .tpl.php
+            ),
+                'rs_collection' => array(
+                'variables' => array(
+                'total_resources' => NULL
+            ),
+                'template' => 'rscollection'// do not include .tpl.php
+            ),
+                'rs_resource__link' => array(
+                'variables' => array(
+                'resource_url' => NULL,
+                'resource_thumbnail' => NULL,
+                'resource_title' => NULL,
+                'node' => NULL
+            ),
+                'template' => 'rs-resource--link'// do not include .tpl.php
+            )
+            );
+}
+
+function rsfilter_menu(){
+    $items = array();
+    $items['admin/rsfilter'] = array(
+                'title' => 'RS Variables',
+                'description' => 'URL for resource API.',
+                'page callback' => 'drupal_get_form',
+                'page arguments' => array('rsfilter_configuration_form'),
+                'access arguments' => array('administer users'), 
+                'type' => MENU_NORMAL_ITEM,
+                );
+    return $items;
+}
+
+function rsfilter_configuration_form($form, &$form_state){
+    $form['rs_api_url'] = array(
+                '#type' => 'textfield',
+                '#default_value' => variable_get('rs_api_url',
+                                                 'URL'),
+                '#title' => t('Resource Space API URL'),
+                '#description' => t('Resource Space direction.'),
+                '#size' => 40,
+                '#maxlength' => 120,
+                '#required' => TRUE,
+                );
+    
+    $form['rs_api_key'] = array(
+                '#type' => 'textfield',
+                '#default_value' => variable_get('rs_api_key',
+                                                 'Key'),
+                '#title' => t('Resource Space API Scramble Key'),
+                '#description' => t('Key for accessing Resource Space.'),
+                '#size' => 40,
+                '#maxlength' => 120,
+                '#required' => TRUE,
+                );
+    
+    $form['submit'] = array(
+                '#type' => 'submit',
+                '#value' => t('Save settings'),
+                );
+    
+    return $form;
+}
+
+function rsfilter_configuration_form_submit($form, &$form_state){
+    variable_set('rs_api_url',$form_state['values']['rs_api_url']);
+    variable_set('rs_api_key',$form_state['values']['rs_api_key']);
+    drupal_set_message(t('The settings have been saved'));
+}
+?>
+

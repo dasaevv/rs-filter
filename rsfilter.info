@@ -1,0 +1,5 @@
+name = Resource Space Filter
+description = Filter for showing Resource Space contents.
+package = "Input filters"
+dependencies[] = filter
+core = 7.x

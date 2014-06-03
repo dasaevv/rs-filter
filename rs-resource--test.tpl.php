@@ -1,0 +1,1 @@
+<span style="color: #FFF;">Resource</span>

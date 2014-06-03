@@ -1,0 +1,1 @@
+<a href="<?php print $resource_url;?>" target='_blank'><?print $resource_title?></a>
